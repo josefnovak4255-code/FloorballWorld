@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Florbal – liga 2026/27</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--text:#1b2430;--muted:#5d6b7a;--accent:#e8590c;--line:#dde3ea;--goal:#2b8a3e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--card:#1b232c;--text:#e8edf2;--muted:#93a1b0;--accent:#ff8a4c;--line:#2c3a47;--goal:#69db7c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12171d;--card:#1b232c;--text:#e8edf2;--muted:#93a1b0;--accent:#ff8a4c;--line:#2c3a47;--goal:#69db7c;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,Arial,sans-serif}
+main{max-width:900px;margin:0 auto;padding:16px}
+h1{font-size:1.4rem;margin:.2em 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+button,select{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;margin:4px 6px 4px 0}
+button.alt,select{background:transparent;color:var(--text);border:1px solid var(--line)}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{padding:5px 7px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600}
+td.n,th.n{text-align:right}
+tr.z{cursor:pointer}
+tr.z:hover{background:var(--bg)}
+.muted{color:var(--muted)}
+#log{list-style:none;margin:0;padding:0;max-height:340px;overflow-y:auto}
+#log li{padding:5px 0;border-bottom:1px solid var(--line)}
+#log .goal{color:var(--goal);font-weight:700}
+#log .pen{color:var(--accent)}
+.t{color:var(--muted);display:inline-block;width:3em}
+.row{display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#e8590c">
+<link rel="icon" href="icon-192.png">
+</head>
+<body>
+<main>
+<h1>🏑 Florbal – liga 2026/27</h1>
+<p class="muted">14 týmů, každý s každým doma i venku = 26 kol po 7 zápasech. Hráči jsou fiktivní, síla týmů je můj odhad pro hru.</p>
+
+<div class="card">
+  <div class="row"><b id="stav"></b></div>
+  <div class="row"><span class="muted">Můj tým:</span><select id="muj"></select><b id="rozp"></b></div>
+  <div class="row">
+    <button id="dalsi">▶ Další kolo</button>
+    <button id="vse" class="alt">⏩ Celá sezóna</button>
+    <button id="novy" class="alt">🔄 Nová sezóna</button>
+  </div>
+  <div class="row" id="tabs">
+    <button class="alt on" data-t="tab">Tabulka</button>
+    <button class="alt" data-t="kolo">Zápasy</button>
+    <button class="alt" data-t="sou">Soupisky</button>
+    <button class="alt" data-t="trh">Trh</button>
+  </div>
+</div>
+
+<div class="card tbl" id="tab"></div>
+
+<div class="card" id="kolo" hidden>
+  <div class="row">
+    <button class="alt" id="prev">◀</button><b id="kn"></b><button class="alt" id="next">▶</button>
+    <span class="muted">(klikni na zápas pro komentář)</span>
+  </div>
+  <div class="tbl"><table id="kt"></table></div>
+</div>
+
+<div class="card" id="det" hidden><b id="dh"></b><ul id="log"></ul></div>
+
+<div class="card tbl" id="trh" hidden></div>
+
+<div class="card tbl" id="sou" hidden>
+  <select id="vyber"></select>
+  <div id="soup"></div>
+</div>
+</main>
+
+<script>
+// ===== 1) POMOCNÉ FUNKCE =====
+const rnd = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const pick = arr => arr[rnd(0, arr.length - 1)];
+const clamp = n => Math.max(30, Math.min(99, Math.round(n)));
+const $ = id => document.getElementById(id);
+
+const JMENA = ["Jan","Petr","Tomáš","Martin","Lukáš","David","Ondřej","Filip","Jakub","Marek","Adam","Daniel","Michal","Vojtěch","Matěj","Štěpán"];
+const PRIJMENI = ["Novák","Svoboda","Dvořák","Černý","Procházka","Kučera","Veselý","Horák","Němec","Pokorný","Pospíšil","Král","Beneš","Fiala","Sedláček","Doležal","Zeman","Kolář"];
+
+// ===== 2) TÝMY (názvy podle soutěže 2026/27, "s" = hodnocení síly, odhad pro hru) =====
+const TYMY = [
+  { n: "1. SC TEMPISH Vítkovice", k: "Vítkovice", s: 72 },
+  { n: "Tatran Střešovice", k: "Tatran Střešovice", s: 75 },
+  { n: "AMIX Florbal MB", k: "Florbal MB", s: 75 },
+  { n: "ACEMA Sparta Praha", k: "Sparta Praha", s: 70 },
+  { n: "FAT PIPE FLORBAL CHODOV", k: "Chodov", s: 70 },
+  { n: "FBC ČPP MPL STAVEBNINY OSTRAVA", k: "Ostrava", s: 66 },
+  { n: "BA SOKOLI Pardubice", k: "Pardubice", s: 65 },
+  { n: "FBC Liberec", k: "Liberec", s: 66 },
+  { n: "FBC ČLT Česká Lípa", k: "Česká Lípa", s: 64 },
+  { n: "Florbal Ústí", k: "Ústí", s: 60 },
+  { n: "FBŠ Hummel Hattrick Brno", k: "Hattrick Brno", s: 62 },
+  { n: "Bulldogs Brno", k: "Bulldogs Brno", s: 60 },
+  { n: "Kanonýři Kladno", k: "Kladno", s: 65 },
+  { n: "HDT.cz Florbal Vary Bohemians", k: "Vary Bohemians", s: 70 },
+];
+
+// ===== 3) HRÁČI A TÝMY =====
+function vytvorHrace(poz, zaklad) {
+  const h = { jmeno: pick(JMENA) + " " + pick(PRIJMENI), poz };
+  if (poz === "B") {
+    h.reflexy = clamp(zaklad + rnd(-8, 8));
+    h.postaveni = clamp(zaklad + rnd(-8, 8));
+    h.hod = Math.round(h.reflexy * 0.6 + h.postaveni * 0.4);
+  } else {
+    h.technika = clamp(zaklad + rnd(-10, 10));
+    h.rychlost = clamp(zaklad + rnd(-10, 10));
+    h.sila = clamp(zaklad + rnd(-10, 10));
+    h.hod = poz === "U"
+      ? Math.round(h.technika * 0.5 + h.rychlost * 0.3 + h.sila * 0.2)
+      : Math.round(h.sila * 0.5 + h.rychlost * 0.3 + h.technika * 0.2);
+  }
+  return h;
+}
+function vytvorTym(t) {
+  return { ...t,
+    B: vytvorHrace("B", t.s),
+    U: Array.from({ length: 5 }, () => vytvorHrace("U", t.s)),
+    O: Array.from({ length: 4 }, () => vytvorHrace("O", t.s)) };
+}
+const hodTymu = t => (t.U.reduce((s, h) => s + h.hod, 0) / 5 + t.O.reduce((s, h) => s + h.hod, 0) / 4 + t.B.hod) / 3;
+
+// ===== 4) SIMULACE ZÁPASU =====
+const souboj = (a, b) => Math.random() < a / (a + b);
+
+function simuluj(A, B) {
+  const T = [A, B], skore = [0, 0], strely = [0, 0], udalosti = [], tresty = [];
+  const AKCI = 70;
+  for (let i = 0; i < AKCI; i++) {
+    const min = Math.floor(i * 60 / AKCI) + 1;
+    const aktivni = t => tresty.filter(p => p.tym === t && p.do > min).length;
+    const sila = t => hodTymu(T[t]) * (1 + 0.12 * aktivni(1 - t)) * (1 - 0.1 * aktivni(t));
+    const a = Math.random() < sila(0) / (sila(0) + sila(1)) ? 0 : 1, b = 1 - a;
+    const ut = pick(T[a].U), ob = pick(T[b].O);
+    const zap = (text, cls = "") => udalosti.push({ min, text, cls, skore: [...skore] });
+    if (Math.random() < 0.05) {
+      tresty.push({ tym: b, do: min + 2 });
+      zap(`🟨 ${ob.jmeno} fauluje ${ut.jmeno} – 2 minuty pro ${T[b].k}.`, "pen");
+      continue;
+    }
+    if (!souboj(ut.technika * 0.6 + ut.rychlost * 0.4, ob.sila * 0.5 + ob.rychlost * 0.5)) {
+      zap(`${ut.jmeno} (${T[a].k}) se snaží prosadit, ale ${ob.jmeno} ho zastavil.`);
+      continue;
+    }
+    strely[a]++;
+    if (souboj(ut.technika * 0.7 + ut.sila * 0.3, T[b].B.hod * 2.5)) {
+      skore[a]++;
+      zap(`⚽ GÓL! ${ut.jmeno} překonává brankáře ${T[b].B.jmeno}! ${skore[0]}:${skore[1]}`, "goal");
+    } else zap(`${ut.jmeno} střílí, ${T[b].B.jmeno} chytá.`);
+  }
+  return { udalosti, skore, strely };
+}
+
+// Ligový zápas: při remíze následuje prodloužení (rozhodne jeden gól)
+function ligovyZapas(h, a) {
+  const r = simuluj(L.tymy[h], L.tymy[a]);
+  r.ot = false;
+  if (r.skore[0] === r.skore[1]) {
+    r.ot = true;
+    const w = Math.random() < hodTymu(L.tymy[h]) / (hodTymu(L.tymy[h]) + hodTymu(L.tymy[a])) ? 0 : 1;
+    r.skore[w]++;
+    r.udalosti.push({ min: 65, text: `⏱ Prodloužení: rozhoduje gól ${L.tymy[w === 0 ? h : a].k}!`, cls: "goal", skore: [...r.skore] });
+  }
+  return r;
+}
+
+// ===== 5) LIGA: ROZPIS (každý s každým 2×) =====
+function vytvorRozpis(n) {
+  let arr = [...Array(n).keys()], pul1 = [];
+  for (let r = 0; r < n - 1; r++) {                    // "kruhová metoda": jeden tým stojí, ostatní se otáčí
+    const kolo = [];
+    for (let i = 0; i < n / 2; i++) {
+      const x = arr[i], y = arr[n - 1 - i];
+      kolo.push((r + i) % 2 === 0 ? { h: x, a: y } : { h: y, a: x });
+    }
+    pul1.push(kolo);
+    arr = [arr[0], arr[n - 1], ...arr.slice(1, n - 1)];
+  }
+  const pul2 = pul1.map(k => k.map(z => ({ h: z.a, a: z.h })));   // odveta: domácí a hosté prohozeni
+  return [...pul1, ...pul2];
+}
+
+let L, zobrKolo = 0, zobrTab = "tab";
+function novaSezona(nacti) {
+  let ulozeno = null;
+  try { if (nacti) ulozeno = JSON.parse(localStorage.getItem("florbal-save")); } catch (e) {}
+  L = ulozeno && ulozeno.tymy && ulozeno.trh ? ulozeno : { tymy: TYMY.map(vytvorTym), rozpis: vytvorRozpis(TYMY.length), kolo: 0, muj: 0, rozp: 2000000, trh: [] };
+  if (!L.trh.length) L.trh = novyTrh();
+  zobrKolo = Math.max(0, L.kolo - 1); $("det").hidden = true;
+  $("vyber").innerHTML = L.tymy.map((t, i) => `<option value="${i}">${t.n}</option>`).join("");
+  $("muj").innerHTML = $("vyber").innerHTML; $("muj").value = $("vyber").value = L.muj;
+  vykresli();
+}
+function odehrajKolo() {
+  if (L.kolo >= L.rozpis.length) return;
+  L.rozpis[L.kolo].forEach(z => z.res = ligovyZapas(z.h, z.a));
+  L.kolo++; zobrKolo = L.kolo - 1; L.trh = novyTrh();
+}
+
+// ===== 6) TABULKA =====
+function tabulka() {
+  const r = L.tymy.map((t, i) => ({ i, z: 0, v: 0, vp: 0, pp: 0, p: 0, g: 0, o: 0, b: 0 }));
+  L.rozpis.forEach(k => k.forEach(z => {
+    if (!z.res) return;
+    const [gh, ga] = z.res.skore, H = r[z.h], A = r[z.a];
+    H.z++; A.z++; H.g += gh; H.o += ga; A.g += ga; A.o += gh;
+    const hw = gh > ga;
+    const W = hw ? H : A, Lo = hw ? A : H;
+    if (z.res.ot) { W.vp++; W.b += 2; Lo.pp++; Lo.b += 1; } else { W.v++; W.b += 3; Lo.p++; }
+  }));
+  return r.sort((x, y) => y.b - x.b || (y.g - y.o) - (x.g - x.o) || y.g - x.g);
+}
+
+// ===== 7) VYKRESLENÍ =====
+function vykresli() {
+  const konec = L.kolo >= L.rozpis.length;
+  $("muj").disabled = L.kolo > 0; trh(); uloz();
+  $("stav").textContent = konec ? "Základní část skončila" : `Odehráno kol: ${L.kolo} / ${L.rozpis.length}`;
+  $("dalsi").disabled = $("vse").disabled = konec;
+  ["tab", "kolo", "sou", "trh"].forEach(id => $(id).hidden = id !== zobrTab);
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === zobrTab));
+  const t = tabulka();
+  $("tab").innerHTML = (konec ? `<p><b>🏆 Vítěz základní části: ${L.tymy[t[0].i].n}</b></p>` : "") +
+    `<table><tr><th>#</th><th>Tým</th><th class="n">Z</th><th class="n">V</th><th class="n">VP</th><th class="n">PP</th><th class="n">P</th><th class="n">Skóre</th><th class="n">B</th></tr>` +
+    t.map((x, n) => `<tr${x.i === L.muj ? ' style="font-weight:700;color:var(--accent)"' : ""}><td>${n + 1}.</td><td>${L.tymy[x.i].n}</td><td class="n">${x.z}</td><td class="n">${x.v}</td><td class="n">${x.vp}</td><td class="n">${x.pp}</td><td class="n">${x.p}</td><td class="n">${x.g}:${x.o}</td><td class="n"><b>${x.b}</b></td></tr>`).join("") + "</table>";
+  $("kn").textContent = `${zobrKolo + 1}. kolo`;
+  $("prev").disabled = zobrKolo === 0; $("next").disabled = zobrKolo === L.rozpis.length - 1;
+  $("kt").innerHTML = L.rozpis[zobrKolo].map((z, i) => {
+    const r = z.res;
+    return `<tr class="z" data-i="${i}"><td>${L.tymy[z.h].n}</td><td class="n"><b>${r ? r.skore[0] + ":" + r.skore[1] + (r.ot ? " pp" : "") : "–"}</b></td><td>${L.tymy[z.a].n}</td></tr>`;
+  }).join("");
+  soupiska();
+}
+// ===== TRH S HRÁČI A UKLÁDÁNÍ =====
+const cena = h => Math.round(Math.pow(Math.max(0, h.hod - 40), 2) * 1000);
+const kc = n => n.toLocaleString("cs-CZ") + " Kč";
+function novyTrh() {
+  return Array.from({ length: 10 }, () => vytvorHrace(pick(["B", "U", "U", "O", "O"]), rnd(60, 82)));
+}
+function slabsi(t, p) {            // nejslabší hráč mého týmu na stejné pozici
+  const sk = p.poz === "B" ? [t.B] : t[p.poz];
+  return sk.reduce((a, b) => (a.hod <= b.hod ? a : b));
+}
+function kup(i) {
+  const t = L.tymy[L.muj], p = L.trh[i], s = slabsi(t, p), zisk = Math.round(cena(s) * 0.8);
+  if (L.rozp + zisk < cena(p)) return;
+  L.rozp += zisk - cena(p);
+  if (p.poz === "B") t.B = p; else t[p.poz][t[p.poz].indexOf(s)] = p;
+  L.trh.splice(i, 1);
+  vykresli();
+}
+function trh() {
+  const t = L.tymy[L.muj];
+  $("rozp").textContent = "Rozpočet: " + kc(L.rozp);
+  $("trh").innerHTML = `<p>Kupuješ za <b>${t.k}</b>. Nový hráč nahradí nejslabšího na stejné pozici, ten se prodá za 80 % své ceny. Trh se obnoví po každém kole.</p><table><tr><th>Poz</th><th>Jméno</th><th>OVR</th><th>Cena</th><th>Nahradí (prodej)</th><th></th></tr>` +
+    L.trh.map((p, i) => { const s = slabsi(t, p); return `<tr><td>${p.poz}</td><td>${p.jmeno}</td><td>${p.hod}</td><td>${kc(cena(p))}</td><td>${s.jmeno} (${s.hod}) za ${kc(Math.round(cena(s) * 0.8))}</td><td><button data-i="${i}" ${L.rozp + Math.round(cena(s) * 0.8) < cena(p) ? "disabled" : ""}>Koupit</button></td></tr>`; }).join("") + "</table>";
+}
+function uloz() {                  // uložení do prohlížeče (komentáře zápasů se neukládají, jsou velké)
+  try { localStorage.setItem("florbal-save", JSON.stringify(L, (k, v) => (k === "udalosti" ? undefined : v))); } catch (e) {}
+}
+
+function soupiska() {
+  const t = L.tymy[+$("vyber").value || 0];
+  const rad = [t.B, ...t.U, ...t.O].map(h => h.poz === "B"
+    ? `<tr><td>B</td><td>${h.jmeno}</td><td>${h.hod}</td><td colspan="3">reflexy ${h.reflexy} / postavení ${h.postaveni}</td></tr>`
+    : `<tr><td>${h.poz}</td><td>${h.jmeno}</td><td>${h.hod}</td><td>${h.technika}</td><td>${h.rychlost}</td><td>${h.sila}</td></tr>`).join("");
+  $("soup").innerHTML = `<p>Síla týmu: <b>${hodTymu(t).toFixed(1)}</b></p><table><tr><th>Poz</th><th>Jméno</th><th>OVR</th><th>Techn.</th><th>Rychl.</th><th>Síla</th></tr>${rad}</table>`;
+}
+function detail(i) {
+  const z = L.rozpis[zobrKolo][i];
+  if (!z.res) return;
+  $("dh").textContent = `${L.tymy[z.h].k} ${z.res.skore[0]}:${z.res.skore[1]} ${L.tymy[z.a].k} · střely ${z.res.strely[0]}:${z.res.strely[1]}`;
+  $("log").innerHTML = (z.res.udalosti || [{ min: "", text: "Komentář se v uložené hře nedochovává.", cls: "" }]).map(u => `<li class="${u.cls}"><span class="t">${u.min}'</span>${u.text}</li>`).join("");
+  $("det").hidden = false; $("det").scrollIntoView({ behavior: "smooth" });
+}
+
+$("dalsi").onclick = () => { odehrajKolo(); vykresli(); };
+$("vse").onclick = () => { while (L.kolo < L.rozpis.length) odehrajKolo(); vykresli(); };
+$("novy").onclick = () => { try { localStorage.removeItem("florbal-save"); } catch (e) {} novaSezona(false); };
+$("muj").onchange = () => { L.muj = +$("muj").value; $("vyber").value = L.muj; vykresli(); };
+$("trh").onclick = e => { if (e.target.dataset.i) kup(+e.target.dataset.i); };
+$("prev").onclick = () => { zobrKolo--; vykresli(); };
+$("next").onclick = () => { zobrKolo++; vykresli(); };
+$("vyber").onchange = soupiska;
+$("tabs").onclick = e => { if (e.target.dataset.t) { zobrTab = e.target.dataset.t; vykresli(); } };
+$("kt").onclick = e => { const tr = e.target.closest("tr"); if (tr) detail(+tr.dataset.i); };
+novaSezona(true);
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+</script>
+</body>
+</html>
